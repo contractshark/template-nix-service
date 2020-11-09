@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# version 0.2.0
+# SPDX-License-Identifier: ISC
 
 set -e
 
@@ -26,23 +28,23 @@ fi
 wget -nc -P ci/ http://dl-cdn.alpinelinux.org/alpine/v3.12/releases/x86_64/alpine-minirootfs-3.12.0-x86_64.tar.gz
 docker build -t "$CONTAINER_NAME" ci/
 
-USER=$(ls -lnd . | awk '{ print $3 }')
-GROUP=$(ls -lnd . | awk '{ print $4 }')
+USER=$(find . type -f | awk '{ print $3 }')
+GROUP=$(find . type -f | awk '{ print $4 }')
 
-mkdir -p $(pwd)/build/core
-mkdir -p $(pwd)/build/$SERVICE 
+mkdir -p "$(pwd)/build/core"
+mkdir -p "$(pwd)/build/$SERVICE"
 
 # an example build 
 # [$1] [$2] == $BUILDTOOL
 
-for $SERVICE in 0 1; do
+for SERVICE in 0 1; do
 
   DIRSUFFIX=${$SERVICE/1/-production}
   DIRSUFFIX=${DIRSUFFIX/0/}
 
   docker run -it --rm \
-    -v $(pwd):/local \
-    -v $(pwd)/build/core"${DIRSUFFIX}":/build:z \
+    -v "$(pwd)":/local \
+    -v "$(pwd)"/build/core"${DIRSUFFIX}":/build:z \
     --env $SERVICE="$SERVICE" \
     --env PRODUCTION="$PRODUCTION" \
     "$CONTAINER_NAME" \
@@ -64,14 +66,14 @@ done
 
 # build testing
 
-for $SERVICE in 0 1; do
+for SERVICE in 0 1; do
 
   DIRSUFFIX=${$SERVICE/1/-production}
   DIRSUFFIX=${DIRSUFFIX/0/}
 
   docker run -it --rm \
-    -v $(pwd):/local \
-    -v $(pwd)/build/testing"${DIRSUFFIX}":/build:z \
+    -v "$(pwd)":/local \
+    -v "$(pwd)"/build/testing"${DIRSUFFIX}":/build:z \
     --env $SERVICE="$$SERVICE" \
     --env MEMORY_PROTECT="$MEMORY_PROTECT" \
     "$CONTAINER_NAME" \
@@ -81,16 +83,16 @@ for $SERVICE in 0 1; do
       cd $ORG/testing && \
       ln -s /build build &&
       git checkout $TAG && \
-      git submodule update --init --recursive && \
-      $BUILDTOOL install && \
-      $BUILDTOOL run script/cibuild && \
-      mkdir -p build/firmware && \
-      cp {{ exec.BIN }} ["(%)"] && \
+      git submodule update --init --recursive && '\
+      $BUILDTOOL install && '\
+      $BUILDTOOL run script/cibuild && '\
+      mkdir -p build/firmware && '\
+      cp {{ exec.BIN }} ["'(%)"] && '\
       cp ["(%)"] ["{%}"] && \
       $BUILDTOOL run ...["$BUILDTOOL_FINALIZE"] \
           -o ["(%)"].fingerprint \
           ["{%}"] && \
-      chown -R $USER:$GROUP /build"
+      chown -R "$USER:$GROUP" /build
 
 done
 
@@ -98,13 +100,14 @@ done
 
 echo "Fingerprints:"
 for VARIANT in core testing; do
-  for $SERVICE in 0 1; do
+  for SERVICE in 0 1; do
 
     DIRSUFFIX=${$SERVICE/1/-testing}
     DIRSUFFIX=${DIRSUFFIX/0/}
 
-    FWPATH=build/${VARIANT}${DIRSUFFIX}/["(%)"]
-    FINGERPRINT=$(tr -d '\n' < $FWPATH.fingerprint)
-    echo "$FINGERPRINT $FWPATH"
-  done
+    FWPATH="build/${VARIANT}${DIRSUFFIX}/[%]"
+    FINGERPRINT=$(tr -d "\n" < "$FWPATH.fingerprint")
+    echo -ne "$FINGERPRINT" "$FWPATH"
+  
+     done
 done
